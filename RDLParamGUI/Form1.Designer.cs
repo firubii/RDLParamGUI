@@ -33,6 +33,7 @@
             this.openToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.saveToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.saveAsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.updateLabelsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.label1 = new System.Windows.Forms.Label();
             this.fileList = new System.Windows.Forms.ListBox();
             this.label2 = new System.Windows.Forms.Label();
@@ -51,7 +52,6 @@
             this.label7 = new System.Windows.Forms.Label();
             this.label8 = new System.Windows.Forms.Label();
             this.intDataOrig = new System.Windows.Forms.TextBox();
-            this.updateLabelsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.menuStrip1.SuspendLayout();
             this.groupBox1.SuspendLayout();
             this.groupBox2.SuspendLayout();
@@ -64,7 +64,7 @@
             this.updateLabelsToolStripMenuItem});
             this.menuStrip1.Location = new System.Drawing.Point(0, 0);
             this.menuStrip1.Name = "menuStrip1";
-            this.menuStrip1.Size = new System.Drawing.Size(584, 24);
+            this.menuStrip1.Size = new System.Drawing.Size(616, 24);
             this.menuStrip1.TabIndex = 0;
             this.menuStrip1.Text = "menuStrip1";
             // 
@@ -103,6 +103,13 @@
             this.saveAsToolStripMenuItem.Text = "Save As...";
             this.saveAsToolStripMenuItem.Click += new System.EventHandler(this.saveAsToolStripMenuItem_Click);
             // 
+            // updateLabelsToolStripMenuItem
+            // 
+            this.updateLabelsToolStripMenuItem.Name = "updateLabelsToolStripMenuItem";
+            this.updateLabelsToolStripMenuItem.Size = new System.Drawing.Size(93, 20);
+            this.updateLabelsToolStripMenuItem.Text = "Update Labels";
+            this.updateLabelsToolStripMenuItem.Click += new System.EventHandler(this.updateLabelsToolStripMenuItem_Click);
+            // 
             // label1
             // 
             this.label1.AutoSize = true;
@@ -135,7 +142,7 @@
             this.valueList.FormattingEnabled = true;
             this.valueList.Location = new System.Drawing.Point(222, 45);
             this.valueList.Name = "valueList";
-            this.valueList.Size = new System.Drawing.Size(200, 355);
+            this.valueList.Size = new System.Drawing.Size(228, 355);
             this.valueList.TabIndex = 5;
             this.valueList.SelectedIndexChanged += new System.EventHandler(this.valueList_SelectedIndexChanged);
             // 
@@ -198,7 +205,7 @@
             this.groupBox1.Controls.Add(this.label5);
             this.groupBox1.Controls.Add(this.label4);
             this.groupBox1.Controls.Add(this.intData);
-            this.groupBox1.Location = new System.Drawing.Point(428, 45);
+            this.groupBox1.Location = new System.Drawing.Point(456, 45);
             this.groupBox1.Name = "groupBox1";
             this.groupBox1.Size = new System.Drawing.Size(148, 145);
             this.groupBox1.TabIndex = 12;
@@ -214,7 +221,7 @@
             this.groupBox2.Controls.Add(this.label8);
             this.groupBox2.Controls.Add(this.intDataOrig);
             this.groupBox2.Enabled = false;
-            this.groupBox2.Location = new System.Drawing.Point(428, 196);
+            this.groupBox2.Location = new System.Drawing.Point(456, 196);
             this.groupBox2.Name = "groupBox2";
             this.groupBox2.Size = new System.Drawing.Size(148, 145);
             this.groupBox2.TabIndex = 13;
@@ -269,18 +276,11 @@
             this.intDataOrig.Size = new System.Drawing.Size(128, 20);
             this.intDataOrig.TabIndex = 9;
             // 
-            // updateLabelsToolStripMenuItem
-            // 
-            this.updateLabelsToolStripMenuItem.Name = "updateLabelsToolStripMenuItem";
-            this.updateLabelsToolStripMenuItem.Size = new System.Drawing.Size(93, 20);
-            this.updateLabelsToolStripMenuItem.Text = "Update Labels";
-            this.updateLabelsToolStripMenuItem.Click += new System.EventHandler(this.updateLabelsToolStripMenuItem_Click);
-            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(584, 414);
+            this.ClientSize = new System.Drawing.Size(616, 414);
             this.Controls.Add(this.groupBox2);
             this.Controls.Add(this.groupBox1);
             this.Controls.Add(this.valueList);
