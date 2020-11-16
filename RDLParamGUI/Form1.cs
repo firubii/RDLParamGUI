@@ -15,17 +15,29 @@ using IniParser.Parser;
 
 namespace RDLParamGUI
 {
+    public enum Endianness
+    {
+        Little,
+        Big
+    }
+
     public partial class Form1 : Form
     {
-        Dictionary<string, byte[]> paramFiles = new Dictionary<string, byte[]>();
-        Dictionary<string, uint[]> paramData = new Dictionary<string, uint[]>();
-        Dictionary<string, uint[]> originalData = new Dictionary<string, uint[]>();
+        Endianness endianness;
+        uint unkXbin;
+        Dictionary<string, uint[]> paramData;
+        Dictionary<string, uint[]> originalData;
         IniData labelData = new IniData();
         string filepath;
 
         public Form1()
         {
             InitializeComponent();
+        }
+
+        private void Form1_Load(object sender, EventArgs e)
+        {
+            UpdateINI();
         }
 
         public void UpdateINI()
@@ -36,95 +48,133 @@ namespace RDLParamGUI
             }
             valueList.Items.Clear();
             int index = fileList.SelectedIndex;
-            UpdateFileList();
+            if (paramData != null)
+                UpdateFileList();
             fileList.SelectedIndex = index;
         }
 
         public uint[] ReadParams(byte[] file)
         {
             List<uint> uintList = new List<uint>();
-            uint fileSize = ReverseBytes(BitConverter.ToUInt32(file, 0x8));
-            for (int i = 0x10; i < fileSize; i += 0x4)
+            BinaryReader reader = new BinaryReader(new MemoryStream(file));
+            if (endianness == Endianness.Big)
+                reader = new BigEndianBinaryReader(new MemoryStream(file));
+
+            reader.BaseStream.Seek(0x10, SeekOrigin.Begin);
+            while (reader.BaseStream.Position < reader.BaseStream.Length - 3)
             {
-                try
-                {
-                    uintList.Add(ReverseBytes(BitConverter.ToUInt32(file, i)));
-                } catch { }
+                uintList.Add(reader.ReadUInt32());
             }
+
             return uintList.ToArray();
         }
 
         public void UpdateFileList()
         {
             fileList.Items.Clear();
-            foreach (KeyValuePair<string, byte[]> file in paramFiles)
+            fileList.BeginUpdate();
+            foreach (KeyValuePair<string, uint[]> file in paramData)
             {
                 fileList.Items.Add(file.Key);
             }
+            fileList.EndUpdate();
         }
 
         public void Save()
         {
             this.Enabled = false;
             this.Cursor = Cursors.WaitCursor;
+
             List<byte[]> files = new List<byte[]>();
             List<string> fileNames = new List<string>();
-            List<byte> archive = new List<byte>()
+            BinaryWriter writer;
+
+            foreach (KeyValuePair<string, uint[]> pair in paramData)
             {
-                0x58, 0x42, 0x49, 0x4E, 0x12, 0x34, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0xA4
-            };
-            for (int i = 0; i < fileList.Items.Count; i++)
-            {
-                List<byte> file = new List<byte>()
+                MemoryStream paramFile = new MemoryStream();
+                if (endianness == Endianness.Big)
+                    writer = new BigEndianBinaryWriter(paramFile);
+                else
+                    writer = new BinaryWriter(paramFile);
+
+                writer.Write("XBIN".ToCharArray());
+                writer.Write((short)0x1234);
+                writer.Write(new byte[] { 2, 0 });
+                writer.Write(0);
+                writer.Write(unkXbin);
+
+                for (int i = 0; i < pair.Value.Length; i++)
                 {
-                    0x58, 0x42, 0x49, 0x4E, 0x12, 0x34, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0xA4
-                };
-                string name = fileList.Items[i].ToString();
-                fileNames.Add(name);
-                for (int v = 0; v < paramData[name].Length; v++)
-                {
-                    file.AddRange(BitConverter.GetBytes(ReverseBytes(paramData[name][v])));
+                    writer.Write(pair.Value[i]);
                 }
-                while (file.Count.ToString("X").Last() != '0' && file.Count.ToString("X").Last() != '4' && file.Count.ToString("X").Last() != '8' && file.Count.ToString("X").Last() != 'C')
-                {
-                    file.Add(0x00);
-                }
-                file.RemoveRange(0x8, 0x4);
-                file.InsertRange(0x8, BitConverter.GetBytes(ReverseBytes((uint)file.Count + 0x4)));
-                files.Add(file.ToArray());
+
+                writer.BaseStream.Seek(0x8, SeekOrigin.Begin);
+                writer.Write((uint)writer.BaseStream.Length);
+                paramFile.SetLength(writer.BaseStream.Length);
+
+                fileNames.Add(pair.Key);
+                files.Add(paramFile.GetBuffer().Take((int)writer.BaseStream.Length).ToArray());
+
+                writer.Close();
+                writer.Dispose();
             }
-            archive.AddRange(BitConverter.GetBytes(ReverseBytes((uint)paramData.Count)));
+
+            if (endianness == Endianness.Big)
+                writer = new BigEndianBinaryWriter(new FileStream(filepath, FileMode.OpenOrCreate, FileAccess.Write));
+            else
+                writer = new BinaryWriter(new FileStream(filepath, FileMode.OpenOrCreate, FileAccess.Write));
+
+            writer.Write("XBIN".ToCharArray());
+            writer.Write((short)0x1234);
+            writer.Write(new byte[] { 2, 0 });
+            writer.Write(0);
+            writer.Write(unkXbin);
+
+            writer.Write((int)paramData.Count);
+
             List<uint> fileOffsets = new List<uint>();
             List<uint> nameOffsets = new List<uint>();
             for (int i = 0; i < files.Count; i++)
             {
-                archive.AddRange(new byte[] { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 });
+                writer.Write((long)0);
             }
             for (int i = 0; i < files.Count; i++)
             {
-                fileOffsets.Add((uint)archive.Count);
-                archive.AddRange(files[i]);
+                fileOffsets.Add((uint)writer.BaseStream.Position);
+                writer.Write(files[i]);
+                //Console.WriteLine($"Wrote {files[i].Length} bytes of file {fileNames[i]}");
             }
-            for (int i = 0; i < files.Count; i++)
+            for (int i = 0; i < fileNames.Count; i++)
             {
-                nameOffsets.Add((uint)archive.Count);
-                archive.AddRange(BitConverter.GetBytes(ReverseBytes((uint)fileNames[i].Length)));
-                archive.AddRange(Encoding.UTF8.GetBytes(fileNames[i]));
-                while (archive.Count.ToString("X").Last() != '0' && archive.Count.ToString("X").Last() != '4' && archive.Count.ToString("X").Last() != '8' && archive.Count.ToString("X").Last() != 'C')
+                Console.WriteLine($"Writing string {fileNames[i]}");
+                long o = writer.BaseStream.Position;
+                nameOffsets.Add((uint)writer.BaseStream.Position);
+                writer.Write(fileNames[i].Length);
+                writer.Write(Encoding.UTF8.GetBytes(fileNames[i]));
+                writer.Write(0);
+
+                while (!writer.BaseStream.Position.ToString("X").EndsWith("0")
+                    && !writer.BaseStream.Position.ToString("X").EndsWith("4")
+                    && !writer.BaseStream.Position.ToString("X").EndsWith("8")
+                    && !writer.BaseStream.Position.ToString("X").EndsWith("C"))
                 {
-                    archive.Add(0x00);
+                    writer.Write((byte)0);
                 }
+                //Console.WriteLine($"Wrote {writer.BaseStream.Position - o} bytes");
             }
+            writer.BaseStream.Seek(0x14, SeekOrigin.Begin);
             for (int i = 0; i < files.Count; i++)
             {
-                archive.RemoveRange(0x14 + (i * 0x8), 0x4);
-                archive.InsertRange(0x14 + (i * 0x8), BitConverter.GetBytes(ReverseBytes(nameOffsets[i])));
-                archive.RemoveRange(0x18 + (i * 0x8), 0x4);
-                archive.InsertRange(0x18 + (i * 0x8), BitConverter.GetBytes(ReverseBytes(fileOffsets[i])));
+                writer.Write(nameOffsets[i]);
+                writer.Write(fileOffsets[i]);
             }
-            archive.RemoveRange(0x8, 0x4);
-            archive.InsertRange(0x8, BitConverter.GetBytes(ReverseBytes((uint)archive.Count + 0x4)));
-            File.WriteAllBytes(filepath, archive.ToArray());
+
+            writer.BaseStream.Seek(0x8, SeekOrigin.Begin);
+            writer.Write((uint)writer.BaseStream.Length);
+
+            writer.Close();
+            writer.Dispose();
+
             this.Cursor = Cursors.Default;
             this.Enabled = true;
         }
@@ -132,28 +182,65 @@ namespace RDLParamGUI
         private void openToolStripMenuItem_Click(object sender, EventArgs e)
         {
             OpenFileDialog open = new OpenFileDialog();
-            open.Filter = "XBIN BIN Archives|*.bin";
+            open.Filter = "XBIN Binary Archives|*.bin";
             if (open.ShowDialog() == DialogResult.OK)
             {
+                saveToolStripMenuItem.Enabled = false;
+                saveAsToolStripMenuItem.Enabled = false;
+
+                paramData = new Dictionary<string, uint[]>();
+
                 filepath = open.FileName;
-                byte[] archive = File.ReadAllBytes(filepath);
-                if (Encoding.UTF8.GetString(archive, 0, 4) == "XBIN")
+                BinaryReader reader = new BinaryReader(new FileStream(filepath, FileMode.Open, FileAccess.Read));
+
+                if (Encoding.UTF8.GetString(reader.ReadBytes(4)) != "XBIN")
                 {
-                    uint fileCount = ReverseBytes(BitConverter.ToUInt32(archive, 0x10));
-                    for (int i = 0; i < fileCount; i++)
-                    {
-                        uint nameOffset = ReverseBytes(BitConverter.ToUInt32(archive, 0x14 + (i * 0x8)));
-                        uint fileOffset = ReverseBytes(BitConverter.ToUInt32(archive, 0x18 + (i * 0x8)));
-                        uint nameLength = ReverseBytes(BitConverter.ToUInt32(archive, (int)nameOffset));
-                        uint fileLength = ReverseBytes(BitConverter.ToUInt32(archive, (int)fileOffset + 0x8));
-                        string fileName = Encoding.UTF8.GetString(archive, (int)nameOffset + 0x4, (int)nameLength);
-                        byte[] file = archive.Skip((int)fileOffset).Take((int)fileLength).ToArray();
-                        paramFiles.Add(fileName, file);
-                        paramData.Add(fileName, ReadParams(file));
-                        originalData = paramData;
-                    }
-                    UpdateFileList();
+                    MessageBox.Show("Invalid XBIN header!", this.Text, MessageBoxButtons.OK);
+                    return;
                 }
+
+                this.Enabled = false;
+                this.Cursor = Cursors.WaitCursor;
+
+                endianness = Endianness.Little;
+                if (reader.ReadBytes(2).SequenceEqual(new byte[] { 0x12, 0x34 }))
+                {
+                    reader = new BigEndianBinaryReader(new FileStream(filepath, FileMode.Open, FileAccess.Read));
+                    endianness = Endianness.Big;
+                }
+
+                reader.BaseStream.Seek(0xC, SeekOrigin.Begin);
+                unkXbin = reader.ReadUInt32();
+
+                uint fileCount = reader.ReadUInt32();
+                for (int i = 0; i < fileCount; i++)
+                {
+                    long pos = reader.BaseStream.Position;
+
+                    reader.BaseStream.Seek(reader.ReadUInt32(), SeekOrigin.Begin);
+                    string name = Encoding.UTF8.GetString(reader.ReadBytes(reader.ReadInt32()));
+
+                    reader.BaseStream.Seek(pos + 0x4, SeekOrigin.Begin);
+                    reader.BaseStream.Seek(reader.ReadUInt32() + 0x8, SeekOrigin.Begin);
+                    int len = reader.ReadInt32();
+                    reader.BaseStream.Seek(-0xC, SeekOrigin.Current);
+                    byte[] file = reader.ReadBytes(len);
+
+                    paramData.Add(name, ReadParams(file));
+
+                    reader.BaseStream.Seek(pos + 0x8, SeekOrigin.Begin);
+                }
+                originalData = paramData;
+
+                reader.Close();
+                reader.Dispose();
+
+                UpdateFileList();
+
+                this.Cursor = Cursors.Default;
+                this.Enabled = true;
+                saveToolStripMenuItem.Enabled = true;
+                saveAsToolStripMenuItem.Enabled = true;
             }
         }
 
@@ -170,11 +257,14 @@ namespace RDLParamGUI
             uint[] values = paramData[filename];
             for (int i = 0; i < values.Length; i++)
             {
-                try
+                if (labelData.Sections.ContainsSection(filename))
                 {
-                    valueList.Items.Add(labelData.Sections[filename][$"{i}"]);
+                    if (labelData.Sections[filename].ContainsKey(i.ToString()))
+                    {
+                        valueList.Items.Add(labelData.Sections[filename][i.ToString()]);
+                    }
                 }
-                catch
+                else
                 {
                     valueList.Items.Add("Entry " + i);
                 }
@@ -194,26 +284,6 @@ namespace RDLParamGUI
             hexDataOrig.Text = origData[index].ToString("X8");
             intDataOrig.Text = origData[index].ToString();
             floatDataOrig.Text = BitConverter.ToSingle(origFloatBytes, 0).ToString();
-        }
-
-        private void Form1_Load(object sender, EventArgs e)
-        {
-            UpdateINI();
-        }
-        
-        public uint ReverseBytes(uint val)
-        {
-            return (val & 0x000000FF) << 24 |
-                    (val & 0x0000FF00) << 8 |
-                    (val & 0x00FF0000) >> 8 |
-                    ((uint)(val & 0xFF000000)) >> 24;
-        }
-        public int ReverseBytes(int val)
-        {
-            return (val & 0x000000FF) << 24 |
-                    (val & 0x0000FF00) << 8 |
-                    (val & 0x00FF0000) >> 8 |
-                    ((int)(val & 0xFF000000)) >> 24;
         }
 
         private void updateLabelsToolStripMenuItem_Click(object sender, EventArgs e)
@@ -276,7 +346,7 @@ namespace RDLParamGUI
         {
             SaveFileDialog save = new SaveFileDialog();
             save.AddExtension = true;
-            save.Filter = "XBIN BIN Archives|*.bin";
+            save.Filter = "XBIN Binary Archives|*.bin";
             save.DefaultExt = ".bin";
             if (save.ShowDialog() == DialogResult.OK)
             {
